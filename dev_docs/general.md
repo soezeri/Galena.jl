@@ -47,6 +47,8 @@ end
 
 For the most part we want to implement a Grammer of Graphics style with GLVisualize as the backend. In the Grammer of Graphics style we talk about the following objects. (Also see `Gadfly.jl`)
 
+* Most functions here should probably have a `x.y!(plot, ...)` method on top of the usual `x.y(...)` to be used in `plot(..., x.y(...))`
+
 
 ###### Scales (Scale)
 
