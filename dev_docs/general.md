@@ -47,6 +47,8 @@ end
 
 For the most part we want to implement a Grammer of Graphics style with GLVisualize as the backend. In the Grammer of Graphics style we talk about the following objects. (Also see `Gadfly.jl`)
 
+* Most functions here should probably have a `x.y!(plot, ...)` method on top of the usual `x.y(...)` to be used in `plot(..., x.y(...))`
+
 
 ###### Scales (Scale)
 
@@ -74,13 +76,7 @@ For interacting with GLVisualize we may want to implement some other objects. Th
 
 ###### Controls (Control)
 
-* Allows key and mouse events to control all(?) the above mentioned objects.
-
-###### Graphical User Interface (GUI)
-
-* Allows a GUI element to be connected to a control
-
-The problem with both of these is that they explicitly need to interact with other objects. In my opinion it doesn't make sense to implement a `Control.modify_linear_scale(params...)` for every little thing. This would be a lot of mundane work, and restrict the user to specific Controls (and connected GUI elements). A more general `Control.modify(Key_Event, scale, modification)` kind of thing would be better, but not fit the GG style.
+* Allows keys/mouse events or GUI elements to be bound to a variable (or object?) using Reactive. Could be used somewhat like `Geom.Sphere(r = Control.Slider(start = 0.0, stop = 1.0))`. 
 
 
 ###### Tiling (Tile)
