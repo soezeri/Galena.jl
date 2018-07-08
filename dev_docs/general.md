@@ -10,6 +10,8 @@ Because tests are great
 @test foo(bar) == expected_result
 ```
 
+In order to compare graphical output, it might be good to write some code that comapres two images. GLVisualize gives functionality to save png's, for example, so a comparison would be easy to make. Should output absolute/percentage hits (or misses). May require `Images` if metadata varies in size...
+
 
 #### Write doc strings for everything
 
@@ -76,7 +78,7 @@ For interacting with GLVisualize we may want to implement some other objects. Th
 
 ###### Controls (Control)
 
-* Allows keys/mouse events or GUI elements to be bound to a variable (or object?) using Reactive. Could be used somewhat like `Geom.Sphere(r = Control.Slider(start = 0.0, stop = 1.0))`. 
+* Allows keys/mouse events or GUI elements to be bound to a variable (or object?) using Reactive. Could be used somewhat like `Geom.Sphere(r = Control.Slider(start = 0.0, stop = 1.0))`.
 
 
 ###### Tiling (Tile)
