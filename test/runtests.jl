@@ -7,3 +7,11 @@ end
 
 # write your own tests here
 @test 1 == 2
+
+
+using Images
+
+img1 = load("test/test.png");
+img2 = load("test/test2.png");
+# img2 = load("test/test.png");
+img1 == img2
