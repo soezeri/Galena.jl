@@ -1,3 +1,7 @@
+# TODO
+# - rewrite screen bookeeping part, so that we can destroy all screens of one
+#   window, rather than everything (see GLVisualize/../renderloop.jl)
+
 # NOTE
 # - What does focus do?
 # - Should monitor default to something other than `nothing`?
@@ -63,11 +67,15 @@ function init_window(
     GLFW.MakeContextCurrent(GLWindow.nativewindow(window))
     # Bookkeeping?
     GLVisualize.pixel_per_mm[] = GLVisualize.get_scaled_dpi(window) / 25.4
+    # I don't see a reason not to start this already
+    @async renderloop(window)
 
     return window
 end
 
 
+# NOTE
+# - may require complex_signals?
 """
     subscreen(source_screen, subscreen_name; kwargs...)
 
@@ -93,15 +101,37 @@ are usuable
 function subscreen(
         window::GLWindow.Screen,
         name::Symbol;
-        area::TOrSignal{SimpleRectangle} = map(x -> x, window.area),
+        area::TOrSignal{<: SimpleRectangle} = map(x -> x, window.area),
         kwargs...
     )
-    Screen(window, name = name, area = area; kwargs...)
+    screen = Screen(window, name = name, area = area; kwargs...)
+    GLVisualize.add_screen(screen)
+    screen
 end
 
-# TODO
-# wrap this?
-# GLVisualize.cleanup()
+
+# I think this is all GLVisualize does, really
+"""
+    close!(window)
+
+Closes any Screen under window.
+"""
+function close!(screen::GLWindow.Screen)
+    if isempty(screen.children)
+        destroy!(screen)
+        return nothing
+    else
+        map(close!, screen.children)
+        GLVisualize.clean!() # Bookkeeping
+        return nothing
+    end
+end
+
+
+# Closes every window and screen 
+function close_all!()
+    GLVisualize.cleanup()
+end
 
 ################################################################################
 
