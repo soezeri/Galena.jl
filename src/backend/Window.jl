@@ -3,6 +3,15 @@
 #   window, rather than everything (see GLVisualize/../renderloop.jl)
 
 # NOTE
+# If two screens overlap with different IDS, only one screen will draw. If two
+# screens overlap with the same id, one screen will draw the background, but
+# objects from both will be rendered
+# This will probably be useful for plotting screens
+# - restricting screen (ID1):   maybe axis, title, etc
+# - plotting screen (ID2):      plotting objects
+# - float screen    (ID2):      floating things, bound to screen
+
+# NOTE
 # - What does focus do?
 # - Should monitor default to something other than `nothing`?
 #   * Having things pop up where you're not working could be nicer...
@@ -85,7 +94,8 @@ of the source_screen.
 # Keyword Arguments
 - `resolution`: The resolution or size of a window, given in pixels.
 - `debugging::Bool = false`: Run window in debug mode.
-- `clear::Bool = true`: If true `color` is used as the background.
+- `clear::Bool = true`: If true `color` is used as the background. Otherwise the
+color (and possibly also renders) is inherited from the parent Screen.
 - `color`: Color to be used for the background.
 - `stroke = (0f0, color)`: Size and color of screen border.
 - `hidden::Bool = false`: If true, hides the current render.
@@ -97,15 +107,19 @@ are usuable
     * `::Void`: Picks the last active monitor.
     * `::Integer`: Picks from a list of monitors.
     * `::GLFW.Monitor`: Direct input.
+- `inherit_id::Bool = false`: If true the screen will inherit the ID from the
+source_screen.
 """
 function subscreen(
         window::GLWindow.Screen,
         name::Symbol;
         area::TOrSignal{<: SimpleRectangle} = map(x -> x, window.area),
+        inherit_id::Bool = false,
         kwargs...
     )
     screen = Screen(window, name = name, area = area; kwargs...)
     GLVisualize.add_screen(screen)
+    inherit_ID && (screen.id = window.id)
     screen
 end
 
@@ -128,7 +142,7 @@ function close!(screen::GLWindow.Screen)
 end
 
 
-# Closes every window and screen 
+# Closes every window and screen
 function close_all!()
     GLVisualize.cleanup()
 end
