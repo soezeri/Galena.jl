@@ -3,6 +3,15 @@
 #   window, rather than everything (see GLVisualize/../renderloop.jl)
 
 # NOTE
+# If two screens overlap with different IDS, only one screen will draw. If two
+# screens overlap with the same id, one screen will draw the background, but
+# objects from both will be rendered
+# This will probably be useful for plotting screens
+# - restricting screen (ID1):   maybe axis, title, etc
+# - plotting screen (ID2):      plotting objects
+# - float screen    (ID2):      floating things, bound to screen
+
+# NOTE
 # - What does focus do?
 # - Should monitor default to something other than `nothing`?
 #   * Having things pop up where you're not working could be nicer...
@@ -83,30 +92,89 @@ Generates a Screen under the source_screen. By default, it will inherit the size
 of the source_screen.
 
 # Keyword Arguments
-- `resolution`: The resolution or size of a window, given in pixels.
-- `debugging::Bool = false`: Run window in debug mode.
-- `clear::Bool = true`: If true `color` is used as the background.
+- `area = source_screen.area`: The size of the screen.
+- `clear::Bool = true`: If true `color` is used as the background. Otherwise the
+color (and possibly also renders) is inherited from the parent screen.
 - `color`: Color to be used for the background.
 - `stroke = (0f0, color)`: Size and color of screen border.
 - `hidden::Bool = false`: If true, hides the current render.
-- `visible::Bool = true`: If false, the user will not see a window.
 - `focus::Bool = false`: Don't know, seems to be focused regardless
-- `fullscreen::Bool = false`: Sets the window to fullscreen
-- `monitor = nothing`: Picks a monitor to create the window on. The following
-are usuable
-    * `::Void`: Picks the last active monitor.
-    * `::Integer`: Picks from a list of monitors.
-    * `::GLFW.Monitor`: Direct input.
 """
 function subscreen(
         window::GLWindow.Screen,
         name::Symbol;
-        area::TOrSignal{<: SimpleRectangle} = map(x -> x, window.area),
+        area::TOrSignal{SimpleRectangle{Int64}} = Signal(value(window.area)),
+        inherit_id::Bool = false,
         kwargs...
     )
     screen = Screen(window, name = name, area = area; kwargs...)
     GLVisualize.add_screen(screen)
     screen
+end
+
+
+"""
+    default_plot_screen(
+        window[,
+        ID = "11",
+        tile_area = window.area,
+        plot_area = tile_area]
+    )
+
+Creates a default screen layout for a plotting window.
+
+
+# Example:
+
+These screens will be added to the window.
+╔═══════════════════╗
+║ ┌───────────────┐ ║
+║ │               │ ║
+║ │  plot_screen  │ ║
+║ │               │ ║
+║ └───────────────┘ ║
+╚═══════════════════╝
+    ^- bg_screen,
+       float_screen
+
+bg_screen:
+- currently only a container because other uses would require modifications in
+ GLWindow. (glClearStencil in /render.jl, setup_window())
+
+plot_screen:
+- reduced area from bg_screen
+- things restricted to the plotting live here
+- most/all things here should be given in plot-coordinates
+
+float_screen:
+- same area as background screen
+- decorations live here (legend, axes, title, ...)
+"""
+function default_plot_screen(
+        window::GLWindow.Screen;
+        ID::String = "11",
+        tile_area::TOrSignal{SimpleRectangle{Int64}} = Signal(value(window.area)),
+        plot_area::TOrSignal{SimpleRectangle{Int64}} = Signal(value(tile_area))
+    )
+    background_screen = subscreen(
+        window,
+        Symbol("bg_screen", ID),
+        area = tile_area
+    )
+    plot_screen = subscreen(
+        background_screen,
+        Symbol("plot_screen", ID),
+        area = plot_area
+    )
+    float_screen = subscreen(
+        background_screen,
+        Symbol("float_screen", ID),
+        area = map(r -> SimpleRectangle(0, 0, r.w, r.h), tile_area),
+        clear = false
+    )
+    # This makes float_screen not clear plot_screen
+    float_screen.id = plot_screen.id
+    return background_screen, plot_screen, float_screen
 end
 
 
@@ -121,14 +189,19 @@ function close!(screen::GLWindow.Screen)
         destroy!(screen)
         return nothing
     else
-        map(close!, screen.children)
-        GLVisualize.clean!() # Bookkeeping
+        map(close!, reverse(screen.children))
+        destroy!(screen)
         return nothing
     end
 end
 
 
-# Closes every window and screen 
+# Closes every window and screen
+"""
+    close_all!()
+
+Closes every Screen.
+"""
 function close_all!()
     GLVisualize.cleanup()
 end
