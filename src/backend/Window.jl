@@ -99,8 +99,6 @@ color (and possibly also renders) is inherited from the parent screen.
 - `stroke = (0f0, color)`: Size and color of screen border.
 - `hidden::Bool = false`: If true, hides the current render.
 - `focus::Bool = false`: Don't know, seems to be focused regardless
-- `inherit_id::Bool = false`: If true the screen will inherit the ID from the
-source_screen.
 """
 function subscreen(
         window::GLWindow.Screen,
@@ -111,7 +109,6 @@ function subscreen(
     )
     screen = Screen(window, name = name, area = area; kwargs...)
     GLVisualize.add_screen(screen)
-    inherit_id && (screen.id = window.id)
     screen
 end
 
@@ -140,13 +137,18 @@ These screens will be added to the window.
     ^- bg_screen,
        float_screen
 
-The bg_screen can be used to draw things that should not overlap with plot. For
-example, bg_screen may be used to draw Axes, titles, colorbars, etc.
-The plot_screen should be restricted by the bg_screen. For example, if a title
-takes up 80px on on the top, the plot screen should start 80px down. It should
-be used for things related to plotting coordinates.
-The float_screen is for floating objects, i.e. objects that expand from the
-plot_screen to the bg_screen. This may include legends, annotations (maybe), ...
+bg_screen:
+- currently only a container because other uses would require modifications in
+ GLWindow. (glClearStencil in /render.jl, setup_window())
+
+plot_screen:
+- reduced area from bg_screen
+- things restricted to the plotting live here
+- most/all things here should be given in plot-coordinates
+
+float_screen:
+- same area as background screen
+- decorations live here (legend, axes, title, ...)
 """
 function default_plot_screen(
         window::GLWindow.Screen;
@@ -154,25 +156,25 @@ function default_plot_screen(
         tile_area::TOrSignal{SimpleRectangle{Int64}} = Signal(value(window.area)),
         plot_area::TOrSignal{SimpleRectangle{Int64}} = Signal(value(tile_area))
     )
-    restrictive_screen = subscreen(
+    background_screen = subscreen(
         window,
-        Symbol(bg_screen, ID),
+        Symbol("bg_screen", ID),
         area = tile_area
     )
     plot_screen = subscreen(
-        restrictive_screen,
-        Symbol(plot_screen, ID),
-        area = plot_area,
-        inherit_id = true
+        background_screen,
+        Symbol("plot_screen", ID),
+        area = plot_area
     )
     float_screen = subscreen(
-        restrictive_screen,
-        Symbol(float_screen, ID),
-        area = tile_area,
-        inherit_id = true,
+        background_screen,
+        Symbol("float_screen", ID),
+        area = map(r -> SimpleRectangle(0, 0, r.w, r.h), tile_area),
         clear = false
     )
-    return restrictive_screen, plot_screen, float_screen
+    # This makes float_screen not clear plot_screen
+    float_screen.id = plot_screen.id
+    return background_screen, plot_screen, float_screen
 end
 
 
@@ -187,8 +189,8 @@ function close!(screen::GLWindow.Screen)
         destroy!(screen)
         return nothing
     else
-        map(close!, screen.children)
-        GLVisualize.clean!() # Bookkeeping
+        map(close!, reverse(screen.children))
+        destroy!(screen)
         return nothing
     end
 end
