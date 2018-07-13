@@ -92,35 +92,87 @@ Generates a Screen under the source_screen. By default, it will inherit the size
 of the source_screen.
 
 # Keyword Arguments
-- `resolution`: The resolution or size of a window, given in pixels.
-- `debugging::Bool = false`: Run window in debug mode.
+- `area = source_screen.area`: The size of the screen.
 - `clear::Bool = true`: If true `color` is used as the background. Otherwise the
-color (and possibly also renders) is inherited from the parent Screen.
+color (and possibly also renders) is inherited from the parent screen.
 - `color`: Color to be used for the background.
 - `stroke = (0f0, color)`: Size and color of screen border.
 - `hidden::Bool = false`: If true, hides the current render.
-- `visible::Bool = true`: If false, the user will not see a window.
 - `focus::Bool = false`: Don't know, seems to be focused regardless
-- `fullscreen::Bool = false`: Sets the window to fullscreen
-- `monitor = nothing`: Picks a monitor to create the window on. The following
-are usuable
-    * `::Void`: Picks the last active monitor.
-    * `::Integer`: Picks from a list of monitors.
-    * `::GLFW.Monitor`: Direct input.
 - `inherit_id::Bool = false`: If true the screen will inherit the ID from the
 source_screen.
 """
 function subscreen(
         window::GLWindow.Screen,
         name::Symbol;
-        area::TOrSignal{<: SimpleRectangle} = map(x -> x, window.area),
+        area::TOrSignal{SimpleRectangle{Int64}} = Signal(value(window.area)),
         inherit_id::Bool = false,
         kwargs...
     )
     screen = Screen(window, name = name, area = area; kwargs...)
     GLVisualize.add_screen(screen)
-    inherit_ID && (screen.id = window.id)
+    inherit_id && (screen.id = window.id)
     screen
+end
+
+
+"""
+    default_plot_screen(
+        window[,
+        ID = "11",
+        tile_area = window.area,
+        plot_area = tile_area]
+    )
+
+Creates a default screen layout for a plotting window.
+
+
+# Example:
+
+These screens will be added to the window.
+╔═══════════════════╗
+║ ┌───────────────┐ ║
+║ │               │ ║
+║ │  plot_screen  │ ║
+║ │               │ ║
+║ └───────────────┘ ║
+╚═══════════════════╝
+    ^- bg_screen,
+       float_screen
+
+The bg_screen can be used to draw things that should not overlap with plot. For
+example, bg_screen may be used to draw Axes, titles, colorbars, etc.
+The plot_screen should be restricted by the bg_screen. For example, if a title
+takes up 80px on on the top, the plot screen should start 80px down. It should
+be used for things related to plotting coordinates.
+The float_screen is for floating objects, i.e. objects that expand from the
+plot_screen to the bg_screen. This may include legends, annotations (maybe), ...
+"""
+function default_plot_screen(
+        window::GLWindow.Screen;
+        ID::String = "11",
+        tile_area::TOrSignal{SimpleRectangle{Int64}} = Signal(value(window.area)),
+        plot_area::TOrSignal{SimpleRectangle{Int64}} = Signal(value(tile_area))
+    )
+    restrictive_screen = subscreen(
+        window,
+        Symbol(bg_screen, ID),
+        area = tile_area
+    )
+    plot_screen = subscreen(
+        restrictive_screen,
+        Symbol(plot_screen, ID),
+        area = plot_area,
+        inherit_id = true
+    )
+    float_screen = subscreen(
+        restrictive_screen,
+        Symbol(float_screen, ID),
+        area = tile_area,
+        inherit_id = true,
+        clear = false
+    )
+    return restrictive_screen, plot_screen, float_screen
 end
 
 
@@ -143,6 +195,11 @@ end
 
 
 # Closes every window and screen
+"""
+    close_all!()
+
+Closes every Screen.
+"""
 function close_all!()
     GLVisualize.cleanup()
 end
