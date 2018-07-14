@@ -8,3 +8,5 @@ else
 end
 
 include("Window.jl")
+
+include("Camera.jl")
