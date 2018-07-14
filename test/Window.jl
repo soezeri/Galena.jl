@@ -12,9 +12,12 @@ window = Backend.init_window(
     color = RGBA(0., 1., 0., 1.)
 )
 
-bg_screen, plot_screen, float_screen = Backend.default_plot_screen(
+bg_screen = Backend.tile_screen(
     window,
-    tile_area = Signal(SimpleRectangle(10, 10, 780, 580)),
+    area = Signal(SimpleRectangle(10, 10, 780, 580)),
+)
+plot_screen, float_screen = Backend.default_plot_screen(
+    bg_screen,
     plot_area = Signal(SimpleRectangle(100, 100, 600, 400))
 )
 bg_screen.color = RGBA{Float32}(1., 0., 0., 1.)
