@@ -1,8 +1,9 @@
 using Reactive
 using GeometryTypes
 using GLFW, GLVisualize
+using GLAbstraction
 
-println("Testing static ScreenCamera")
+@testset "Testing static ScreenCamera, basic Tiling" begin
 
 window = Backend.init_window(
     resolution = (800, 400),
@@ -43,8 +44,8 @@ left_ps.color = RGBA{Float32}(0., 0., 1., 1.)
 right_ps.color = RGBA{Float32}(0., 0., 1., 1.)
 
 # With this camera changing the window size should
-# - keep the size the same
-# - keep the absolute position on the respective screen the same
+# - keep the size of objects the same
+# - keep the absolute position of objects on the respective screen the same
 window_cam = Backend.ScreenCamera(window)
 left_cam = Backend.ScreenCamera(left_fs)
 right_cam = Backend.ScreenCamera(right_fs)
@@ -53,32 +54,40 @@ right_cam = Backend.ScreenCamera(right_fs)
 w, h = 50, 50
 rect(x, y) = SimpleRectangle(Vec2f0(x-0.5w, y-0.5h), Vec2f0(w, h))
 
-# For some reason Rectangles are scaled weirdly
-# this undoes it
-scale_w = map(b -> Vec2f0(2w / b.w, 2h / b.h), window.area)
-scale_l = map(b -> Vec2f0(2w / b.w, 2h / b.h), left_area)
-scale_r = map(b -> Vec2f0(2w / b.w, 2h / b.h), right_area)
-
 # Plop a Rectangle in the bottom center
 # This should be in the background
-robj = visualize(rect(400, 0), color = RGBA(1., 1., 0., 1.), scale = scale_w)
+robj = visualize(rect(400, 0), color = RGBA(1., 1., 0., 1.))
 _view(robj, window, camera = window_cam)
 
 
 # Rectangles on left screen & right screen
-# this should be at the front
-robj = visualize(rect(50, 50), color = RGBA(1., 0., 1., 1.), scale = scale_l)
+# these should be at the front
+robj = visualize(rect(50, 50), color = RGBA(1., 0., 1., 1.))
 _view(robj, left_fs, camera = left_cam)
-robj = visualize(rect(335, 330), color = RGBA(1., 0., 1., 1.), scale = scale_l)
+robj = visualize(rect(335, 330), color = RGBA(1., 0., 1., 1.))
 _view(robj, left_fs, camera = left_cam)
-robj = visualize(rect(450, 200), color = RGBA(1., 0., 1., 1.), scale = scale_l)
+robj = visualize(rect(450, 200), color = RGBA(1., 0., 1., 1.))
 _view(robj, left_fs, camera = left_cam)
 
-robj = visualize(rect(50, 50), color = RGBA(1., 0., 1., 1.), scale = scale_r)
+robj = visualize(rect(50, 50), color = RGBA(1., 0., 1., 1.))
 _view(robj, right_fs, camera = right_cam)
-robj = visualize(rect(335, 330), color = RGBA(1., 0., 1., 1.), scale = scale_r)
+robj = visualize(rect(335, 330), color = RGBA(1., 0., 1., 1.))
 _view(robj, right_fs, camera = right_cam)
-robj = visualize(rect(450, 200), color = RGBA(1., 0., 1., 1.), scale = scale_r)
+robj = visualize(rect(450, 200), color = RGBA(1., 0., 1., 1.))
+_view(robj, right_fs, camera = right_cam)
+
+# Test some other objects too
+w, h = 385/2, 380/2
+robj = visualize(
+    HyperSphere(Point2f0(w, h), 20f0),
+    color = RGBA(0., 1., 1., 1.)
+)
+_view(robj, left_fs, camera = left_cam)
+robj = visualize(
+    [Point2f0(w+40cos(x), h+20sin(2x)) for x in linspace(0, 2pi, 100)],
+    :lines,
+    color = RGBA(0., 1., 1., 1.)
+)
 _view(robj, right_fs, camera = right_cam)
 
 # Test 1
@@ -105,3 +114,5 @@ img = load("screenshot.png");
 image_equal = ref_img == img
 @test image_equal
 rm("screenshot.png")
+
+end

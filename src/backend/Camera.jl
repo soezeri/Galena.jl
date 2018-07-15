@@ -23,14 +23,12 @@ end
 Returns a static camera which uses the same coordinates as the screen.
 """
 function ScreenCamera(screen_area::Signal{SimpleRectangle{Int}})
-    # Setup:
-    # projectionview * vector =
-    #   = projection * view * vector
-    #   = projection * scale * vector
+    # NOTE
+    # view ONLY applies to the position of opengl primitives, such as rectangles
+    # projection applies to all vertices
+    # it seems...
 
-    # Not necessary here
-    # rotation = Signal(eye(Mat{4, 4, Float32}))
-    view = scale = map(screen_area) do box
+    projection = scale = map(screen_area) do box
         Mat{4}(
             2f0/box.w,  0f0,        0f0,    0f0,
             0f0,        2f0/box.h,  0f0,    0f0,
@@ -38,7 +36,7 @@ function ScreenCamera(screen_area::Signal{SimpleRectangle{Int}})
             -1f0,      -1f0,        0f0,    1f0
         )
     end
-    projection = Signal(eye(Mat{4, 4, Float32}))
+    view = Signal(eye(Mat{4, 4, Float32}))
     ScreenCamera(screen_area, scale, view, projection, map(*, projection, view))
 end
 ScreenCamera(screen::GLWindow.Screen) = ScreenCamera(screen.area)
