@@ -4,17 +4,39 @@ abstract type AbstractCamera2D{T} <: Camera{T} end
 # Static 2D camera
 
 TODO
-- make some system using units, like (0.3w, 0.4h) and (20px, 80px)
-- does this need any controls? probably not
+does this need any controls? probably not
+
+maybe remake ScreenCamera for easier positioning and scaling
+we want the following options
+- absolute or relative position
+- absolute or relative size
+can we get this from one Camera?
+we could also do positioning outside the camera, with units (1w, 1h; 1px)
+
+# Actions
+onResize
+- screen_size changes
+- plot_size constant (?)
+- objects don't scale (?)
+- positions maybe scale
+
+onZoom
+- screen_size constant
+- plot_size changes
+- objects maybe scale (i.e. point styles don't, but general Geoms do?)
+- positions scale
 =#
 
 struct ScreenCamera{T} <: AbstractCamera2D{T}
     screen_size::Signal{SimpleRectangle{Int}}
 
-    scale::Signal{Mat4{T}}
-    view::Signal{Mat4{T}}
-    projection::Signal{Mat4{T}}
-    projectionview::Signal{Mat4{T}}
+    translation::Signal{Mat{4, 4, T, 16}}
+    scale::Signal{Mat{4, 4, T, 16}}
+    conversion::Signal{Mat{4, 4, T, 16}}
+
+    view::Signal{Mat{4, 4, T, 16}}
+    projection::Signal{Mat{4, 4, T, 16}}
+    projectionview::Signal{Mat{4, 4, T, 16}}
 end
 
 """
@@ -22,30 +44,147 @@ end
 
 Returns a static camera which uses the same coordinates as the screen.
 """
-function ScreenCamera(screen_area::Signal{SimpleRectangle{Int}})
+function ScreenCamera(
+        screen_size::Signal{SimpleRectangle{Int}},
+        position::Symbol = :absolute,
+        scale::Symbol = :absolute
+    )
     # NOTE
     # view ONLY applies to the position of opengl primitives, such as rectangles
     # projection applies to all vertices
     # it seems...
 
-    projection = scale = map(screen_area) do box
-        Mat{4}(
-            2f0/box.w,  0f0,        0f0,    0f0,
-            0f0,        2f0/box.h,  0f0,    0f0,
-            0f0,        0f0,        1f0,    0f0,
-            -1f0,      -1f0,        0f0,    1f0
-        )
+    translation = if position == :absolute
+        map(screen_size) do box
+            Mat{4, 4, Float32}(
+                    1,          0,      0, 0,
+                    0,          1,      0, 0,
+                    0,          0,      1, 0,
+                 -0.5box.w,  -0.5box.h, 0, 1
+            )
+        end
+    elseif position == :relative
+        Signal(Mat{4, 4, Float32}(
+             1,  0, 0, 0,
+             0,  1, 0, 0,
+             0,  0, 1, 0,
+            -0.5, -0.5, 0, 1
+        ))
+    else
+        throw(error("position scaling $position not implemented."))
     end
-    view = Signal(eye(Mat{4, 4, Float32}))
-    ScreenCamera(screen_area, scale, view, projection, map(*, projection, view))
+
+    scale_matrix = if scale == :absolute
+        map(screen_size) do box
+            Mat{4, 4, Float32}(
+                2/box.w,  0,        0,    0,
+                0,        2/box.h,  0,    0,
+                0,        0,        1,    0,
+                0,        0,        0,    1
+            )
+        end
+    elseif position == :relative
+        Signal(Mat{4, 4, Float32}(
+             2, 0, 0, 0,
+             0, 2, 0, 0,
+             0, 0, 1, 0,
+             0, 0, 0, 1
+        ))
+    else
+        throw(error("position scaling $position not implemented."))
+    end
+
+    conversion = if (position == :absolute) && (scale == :relative)
+        # absolute -> relative
+        map(screen_size) do box
+            Mat{4, 4, Float32}(
+                1/box.w,  0,        0,    0,
+                0,        1/box.h,  0,    0,
+                0,        0,        1,    0,
+                0,        0,        0,    1
+            )
+        end
+    elseif (position == :relative) && (scale == :absolute)
+        # relative -> absolute
+        map(screen_size) do box
+            Mat{4, 4, Float32}(
+                box.w,  0,      0,    0,
+                0,      box.h,  0,    0,
+                0,      0,      1,    0,
+                0,      0,      0,    1
+            )
+        end
+    else
+        Signal(eye(Mat{4, 4, Float32}))
+    end
+
+    view = map(*, conversion, translation)
+    projection = scale_matrix
+
+    # if scale == :absolute
+    #     view = Signal(eye(Mat{4, 4, Float32}))
+    #     projection = scale = map(screen_size) do box
+    #         Mat{4}(
+    #               1f0,    0f0,  0f0,    0f0,
+    #               0f0,    1f0,  0f0,    0f0,
+    #               0f0,    0f0,  1f0,    0f0,
+    #             -.5f0,  -.5f0,  0f0,    1f0
+    #         )
+    #     end
+    # elseif scale == :relative
+    #     view = Signal(eye(Mat{4, 4, Float32}))
+    #     projection = scale = map(screen_size) do box
+    #         Mat{4}(
+    #             2f0/box.w,  0f0,        0f0,    0f0,
+    #             0f0,        2f0/box.h,  0f0,    0f0,
+    #             0f0,        0f0,        1f0,    0f0,
+    #             -1f0,      -1f0,        0f0,    1f0
+    #         )
+    #     end
+    # else
+    #     error("Scale $scale not available.")
+    # end
+    ScreenCamera(
+        screen_size,
+        translation,
+        conversion,
+        scale_matrix,
+        view,
+        projection,
+        map(*, projection, view)
+    )
 end
 ScreenCamera(screen::GLWindow.Screen) = ScreenCamera(screen.area)
 
 
 ################################################################################
-
-
-
+#
+#
+# struct PlotCamera{T} <: AbstractCamera2D{T}
+#     screen_size::Signal{SimpleRectangle{Int}}
+#     plot_size::Signal{SimpleRectangle{Int}}
+#
+#     scale::Signal{Mat{4, 4, T}}
+#     view::Signal{Mat{4, 4, T}}
+#     projection::Signal{Mat{4, 4, T}}
+#     projectionview::Signal{Mat{4, 4, T}}
+# end
+#
+# function PlotCamera(
+#         screen_size::Signal{SimpleRectangle{Int}},
+#         plot_size::Signal{SimpleRectangle{Float}}
+#     )
+#     projection = scale = map(plot_size) do box
+#         Mat{4}(
+#             2f0/box.w,  0f0,        0f0,    0f0,
+#             0f0,        2f0/box.h,  0f0,    0f0,
+#             0f0,        0f0,        1f0,    0f0,
+#             -1f0,      -1f0,        0f0,    1f0
+#         )
+#     end
+#     view = Signal(eye(Mat{4, 4, Float32}))
+#     ScreenCamera(screen_area, scale, view, projection, map(*, projection, view))
+# end
 
 #=
 ## 2D Plotting Camera
