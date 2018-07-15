@@ -121,29 +121,6 @@ function ScreenCamera(
     view = map(*, conversion, translation)
     projection = scale_matrix
 
-    # if scale == :absolute
-    #     view = Signal(eye(Mat{4, 4, Float32}))
-    #     projection = scale = map(screen_size) do box
-    #         Mat{4}(
-    #               1f0,    0f0,  0f0,    0f0,
-    #               0f0,    1f0,  0f0,    0f0,
-    #               0f0,    0f0,  1f0,    0f0,
-    #             -.5f0,  -.5f0,  0f0,    1f0
-    #         )
-    #     end
-    # elseif scale == :relative
-    #     view = Signal(eye(Mat{4, 4, Float32}))
-    #     projection = scale = map(screen_size) do box
-    #         Mat{4}(
-    #             2f0/box.w,  0f0,        0f0,    0f0,
-    #             0f0,        2f0/box.h,  0f0,    0f0,
-    #             0f0,        0f0,        1f0,    0f0,
-    #             -1f0,      -1f0,        0f0,    1f0
-    #         )
-    #     end
-    # else
-    #     error("Scale $scale not available.")
-    # end
     ScreenCamera(
         screen_size,
         translation,
@@ -158,33 +135,133 @@ ScreenCamera(screen::GLWindow.Screen) = ScreenCamera(screen.area)
 
 
 ################################################################################
-#
-#
-# struct PlotCamera{T} <: AbstractCamera2D{T}
-#     screen_size::Signal{SimpleRectangle{Int}}
-#     plot_size::Signal{SimpleRectangle{Int}}
-#
-#     scale::Signal{Mat{4, 4, T}}
-#     view::Signal{Mat{4, 4, T}}
-#     projection::Signal{Mat{4, 4, T}}
-#     projectionview::Signal{Mat{4, 4, T}}
-# end
-#
-# function PlotCamera(
-#         screen_size::Signal{SimpleRectangle{Int}},
-#         plot_size::Signal{SimpleRectangle{Float}}
-#     )
-#     projection = scale = map(plot_size) do box
-#         Mat{4}(
-#             2f0/box.w,  0f0,        0f0,    0f0,
-#             0f0,        2f0/box.h,  0f0,    0f0,
-#             0f0,        0f0,        1f0,    0f0,
-#             -1f0,      -1f0,        0f0,    1f0
-#         )
-#     end
-#     view = Signal(eye(Mat{4, 4, Float32}))
-#     ScreenCamera(screen_area, scale, view, projection, map(*, projection, view))
-# end
+
+
+#=
+# Actions for plot
+onResize
+- screen_size changes
+- plot_size constant
+- objects don't scale
+- positions don't scale
+
+onZoom
+- screen_size constant
+- plot_size changes
+- objects maybe scale (i.e. point styles don't, but general Geoms do?)
+- positions scale
+
+onCoord change
+- screen_size constant
+- plot_size changes (this means new screen <> plot mapping)
+- objects maybe scale
+- positions scale
+
+---
+
+maybe do two cameras, one for plot, one for static size objects in plot space
+
+TODO
+- interface for scaling plot_size (simple push new values)
+- interface for drag and zoom speed? at least initial
+- Constructor interface
+- write tests
+
+=#
+
+
+struct PlotCamera{T} <: AbstractCamera2D{T}
+    screen_size::Signal{SimpleRectangle{Int}}
+    plot_size::Signal{SimpleRectangle{T}}
+
+    drag_speed::Signal{Vec2f0}
+    zoom_speed::Signal{T}
+
+    plot2unit::Signal{Mat{4, 4, T}}
+    zoom_matrix::Signal{Mat{4, 4, T}}
+
+    view::Signal{Mat{4, 4, T}}
+    projection::Signal{Mat{4, 4, T}}
+    projectionview::Signal{Mat{4, 4, T}}
+end
+
+
+"""
+    PlotCamera()
+"""
+function PlotCamera(
+        screen_size::Signal{SimpleRectangle{Int}},
+        screen_inputs::Dict{Symbol, Any},
+        initial_plot_size::SimpleRectangle{Float},
+        drag_speed::Signal{Vec2f0} = Signal(Vec2f0(1)),
+        zoom_speed::Signal{Float32} = Signal(1.1f0)
+    )
+    # Dragging
+    # maybe move these out later?
+    mouse_buttons_pressed = screen_inputs[:mouse_buttons_pressed]
+    left_pressed = const_lift(
+        GLAbstraction.pressed,
+        mouse_buttons_pressed,
+        GLFW.MOUSE_BUTTON_LEFT
+    )
+    mouse_pos = map(Vec2f0, filter(
+        left_pressed,
+        screen_inputs[:mouseposition]
+    ))
+
+    # This may omit one pixel of movement?
+    tracker = foldp((true, Vec2f0(0), Vec2f0(0)), mouse_pos) do value, pos
+        was_asleep = value[1]
+        if was_asleep
+            return (false, pos, pos)
+        else
+            return (false, value[3], pos)
+        end
+    end
+
+    # map px coordinates and px drag speed to plot_coords
+    plot_drag = map(plot_size, screen_size, drag_speed) do pb, sb, v
+        Vec2f0(pb.w * v[1] / sb.w, pb.h * v[2] / sb.h)
+    end
+    xy_diff = map(v -> value(plot_drag) .* (v[3] - v[2]), tracker)
+
+    plot_size = foldp(inital_plot_size, xy_diff) do box, dxy
+        SimpleRectangle(box.x + dxy[1], box.y + dxy[2], box.w, box.h)
+    end
+
+
+    # scale plot-space to (-1, 1) x (-1, 1)
+    plot2unit = map(plot_size) do box
+        Mat{4, 4, Float32}(
+            2./box.w,               0,                      0, 0,
+            0,                      2./box.h,               0, 0,
+            0,                      0,                      1, 0,
+            -(2.0box.x/box.w + 1), -(2.0box.y/box.h + 1),   0, 1
+        )
+    end
+
+
+    # Setup zoom
+    scroll = map(x -> Float32(x[2]), screen_inputs[:scroll])
+    zoom_mult = foldp(1f0, scroll) do mult, s
+        # s ∈ (-1, 0, 1)
+        mult * value(zoom_speed)^s
+    end
+    zoom_matrix = map(x -> scalematrix(Vec3f0(x, x, 1f0)), zoom_mult)
+
+
+    # Collect transformation
+    view = Signal(eye(Mat{4, 4, Float32}))
+    projection = map(*, zoom_matrix, plot2unit)
+    projectionview = map(*, projection, view)
+
+    PlotCamera(
+        screen_size, plot_size,
+        drag_speed, zoom_speed,
+        plot2unit, zoom_matrix,
+        view, projection, projectionview
+    )
+end
 
 #=
 ## 2D Plotting Camera
