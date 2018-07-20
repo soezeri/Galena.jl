@@ -177,56 +177,85 @@ struct PlotCamera{T} <: AbstractCamera2D{T}
     drag_speed::Signal{Vec2f0}
     zoom_speed::Signal{T}
 
-    plot2unit::Signal{Mat{4, 4, T}}
-    zoom_matrix::Signal{Mat{4, 4, T}}
+    plot2unit::Signal{Mat{4, 4, T, 16}}
+    zoom_matrix::Signal{Mat{4, 4, T, 16}}
 
-    view::Signal{Mat{4, 4, T}}
-    projection::Signal{Mat{4, 4, T}}
-    projectionview::Signal{Mat{4, 4, T}}
+    view::Signal{Mat{4, 4, T, 16}}
+    projection::Signal{Mat{4, 4, T, 16}}
+    projectionview::Signal{Mat{4, 4, T, 16}}
 end
 
 
 """
-    PlotCamera()
+    PlotCamera(screen[, xmin = 0, xmax = 1, ymin = 0, ymax = 1])
+
+Constructs a plotting camera for a given screen.
 """
 function PlotCamera(
-        screen_size::Signal{SimpleRectangle{Int}},
-        screen_inputs::Dict{Symbol, Any},
-        initial_plot_size::SimpleRectangle{Float},
+        screen::GLWindow.Screen;
+        screen_size::Signal{SimpleRectangle{Int}} = screen.area,
+        screen_inputs::Dict{Symbol, Any} = screen.inputs,
+        xmin::T = 0.0,
+        xmax::T = 1.0,
+        ymin::T = 0.0,
+        ymax::T = 1.0,
+        initial_plot_size::SimpleRectangle{Float32} = SimpleRectangle{Float32}(
+            xmin, ymin, xmax-xmin, ymax-ymin
+        ),
         drag_speed::Signal{Vec2f0} = Signal(Vec2f0(1)),
         zoom_speed::Signal{Float32} = Signal(1.1f0)
-    )
+    ) where T <: Real
     # Dragging
-    # maybe move these out later?
+    # TODO
+    # move these out?
     mouse_buttons_pressed = screen_inputs[:mouse_buttons_pressed]
     left_pressed = const_lift(
         GLAbstraction.pressed,
         mouse_buttons_pressed,
         GLFW.MOUSE_BUTTON_LEFT
     )
-    mouse_pos = map(Vec2f0, filter(
-        left_pressed,
-        screen_inputs[:mouseposition]
-    ))
 
-    # This may omit one pixel of movement?
-    tracker = foldp((true, Vec2f0(0), Vec2f0(0)), mouse_pos) do value, pos
-        was_asleep = value[1]
-        if was_asleep
-            return (false, pos, pos)
-        else
-            return (false, value[3], pos)
-        end
+    # TODO
+    # do this with less steps?
+    # meaning filter before history...
+    mouse_history = foldp(
+            (Vec2f0(0), Vec2f0(0)),
+            screen_inputs[:mouseposition]
+        ) do prev, curr
+        (prev[end], Vec2f0(curr))
     end
+    tracker = filterwhen(
+        left_pressed,
+        (Vec2f0(0), Vec2f0(0)),
+        mouse_history
+    )
 
     # map px coordinates and px drag speed to plot_coords
-    plot_drag = map(plot_size, screen_size, drag_speed) do pb, sb, v
-        Vec2f0(pb.w * v[1] / sb.w, pb.h * v[2] / sb.h)
-    end
-    xy_diff = map(v -> value(plot_drag) .* (v[3] - v[2]), tracker)
+    # plot_drag = map(plot_size, screen_size, drag_speed) do pb, sb, v
+    #     Vec2f0(pb.w * v[1] / sb.w, pb.h * v[2] / sb.h)
+    # end
+    # xy_diff = map(v -> value(plot_drag) .* (v[3] - v[2]), tracker)
+    # xy_diff = map(tracker) do v
+    #
+    # end
+    #
+    # plot_size = foldp(inital_plot_size, xy_diff) do box, dxy
+    #     SimpleRectangle(
+    #         box.x + dxy[1],
+    #         box.y + dxy[2],
+    #         box.w,
+    #         box.h
+    #     )
+    # end
 
-    plot_size = foldp(inital_plot_size, xy_diff) do box, dxy
-        SimpleRectangle(box.x + dxy[1], box.y + dxy[2], box.w, box.h)
+    plot_size = foldp(initial_plot_size, tracker) do pbox, tracker_value
+        sbox = value(screen_size)
+        v = value(drag_speed)
+        dxy = Vec2f0(
+            pbox.w * v[1] / sbox.w,
+            pbox.h * v[2] / sbox.h
+        ) .* (tracker_value[end] - tracker_value[end-1])
+        SimpleRectangle(pbox.x - dxy[1], pbox.y - dxy[2], pbox.w, pbox.h)
     end
 
 

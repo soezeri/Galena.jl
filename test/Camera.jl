@@ -1,4 +1,4 @@
-using Reactive
+using Base.Iterators, Reactive
 using GeometryTypes
 using GLFW, GLVisualize
 using GLAbstraction
@@ -132,11 +132,30 @@ robj = visualize(
 _view(robj, right_fs, camera = right_mixed_cam)
 
 
+# Test plotting camera:
+left_pcam = Backend.PlotCamera(left_ps)
+right_pcam = Backend.PlotCamera(right_ps, xmax = 1000., ymax = 1000.)
+
+robj = visualize(
+    [Point2f0(x, exp(x)-1.0) for x in linspace(0, 1, 100)],
+    :lines,
+    color = RGBA(1., 1., 1., 1.)
+)
+_view(robj, left_ps, camera = left_pcam)
+robj = visualize(
+    [Point2f0(x, 1e3/((x-500.0)^2 + 1e-10) + 10) for x in linspace(0, 1000, 1000)],
+    :lines,
+    color = RGBA(1., 1., 1., 1.)
+)
+_view(robj, right_ps, camera = right_pcam)
+
+
+
 # Test 1
 sleep(0.1)
 GLWindow.screenshot(window)
 
-ref_img = load("ref_img/ScreenCamera.png");
+ref_img = load("ref_img/2DCamera.png");
 img = load("screenshot.png");
 image_equal = ref_img == img
 @test image_equal
@@ -151,10 +170,11 @@ sleep(2/60)
 GLWindow.screenshot(window)
 Backend.close!(window)
 
-ref_img = load("ref_img/ScreenCamera_scaled.png");
+ref_img = load("ref_img/2DCamera_scaled.png");
 img = load("screenshot.png");
 image_equal = ref_img == img
 @test image_equal
 rm("screenshot.png")
+
 
 end
