@@ -1,4 +1,4 @@
-using Reactive
+using Base.Iterators, Reactive
 using GeometryTypes
 using GLFW, GLVisualize
 using GLAbstraction
@@ -76,25 +76,86 @@ _view(robj, right_fs, camera = right_cam)
 robj = visualize(rect(450, 200), color = RGBA(1., 0., 1., 1.))
 _view(robj, right_fs, camera = right_cam)
 
+
 # Test some other objects too
-w, h = 385/2, 380/2
+w, h = 385, 380
 robj = visualize(
-    HyperSphere(Point2f0(w, h), 20f0),
-    color = RGBA(0., 1., 1., 1.)
+    HyperSphere(Point2f0(0.5w, 0.5h), 20f0),
+    color = RGBA(1., 0., 1., 1.)
 )
 _view(robj, left_fs, camera = left_cam)
 robj = visualize(
-    [Point2f0(w+40cos(x), h+20sin(2x)) for x in linspace(0, 2pi, 100)],
+    [Point2f0(0.5w+40cos(x), 0.5h+20sin(2x)) for x in linspace(0, 2pi, 100)],
+    :lines,
+    color = RGBA(1., 0., 1., 1.)
+)
+_view(robj, right_fs, camera = right_cam)
+
+
+# Test relative positions, scale
+left_rel_cam = Backend.ScreenCamera(left_area, :relative, :relative)
+right_rel_cam = Backend.ScreenCamera(right_area, :relative, :relative)
+
+robj = visualize(
+    HyperSphere(Point2f0(0.5, 0.25), 0.05f0),
+    color = RGBA(0., 1., 1., 1.)
+)
+_view(robj, left_fs, camera = left_rel_cam)
+robj = visualize(
+    [Point2f0(0.5+0.1cos(x), 0.25+0.05sin(2x)) for x in linspace(0, 2pi, 100)],
     :lines,
     color = RGBA(0., 1., 1., 1.)
 )
-_view(robj, right_fs, camera = right_cam)
+_view(robj, right_fs, camera = right_rel_cam)
+
+
+# Test relative positions, absolute scale
+# NOTE
+# this is pretty wonky...
+# HyperRectangle tranforms position and scaling independently
+# lines transform only via positons
+# meshes (?) transform positions and scaling dependently
+left_mixed_cam = Backend.ScreenCamera(left_area, :relative)
+right_mixed_cam = Backend.ScreenCamera(right_area, :relative)
+
+robj = visualize(
+    HyperRectangle(Vec2f0(0.5, 0.75), Vec2f0(50f0)),
+    color = RGBA(0., 1., 1., 1.)
+)
+_view(robj, left_fs, camera = left_mixed_cam)
+
+robj = visualize(
+    [Point2f0(0.5+0.1cos(x), 0.75+0.05sin(2x)) for x in linspace(0, 2pi, 100)],
+    :lines,
+    color = RGBA(0., 1., 1., 1.)
+)
+_view(robj, right_fs, camera = right_mixed_cam)
+
+
+# Test plotting camera:
+left_pcam = Backend.PlotCamera(left_ps)
+right_pcam = Backend.PlotCamera(right_ps, xmax = 1000., ymax = 1000.)
+
+robj = visualize(
+    [Point2f0(x, exp(x)-1.0) for x in linspace(0, 1, 100)],
+    :lines,
+    color = RGBA(1., 1., 1., 1.)
+)
+_view(robj, left_ps, camera = left_pcam)
+robj = visualize(
+    [Point2f0(x, 1e3/((x-500.0)^2 + 1e-10) + 10) for x in linspace(0, 1000, 1000)],
+    :lines,
+    color = RGBA(1., 1., 1., 1.)
+)
+_view(robj, right_ps, camera = right_pcam)
+
+
 
 # Test 1
 sleep(0.1)
 GLWindow.screenshot(window)
 
-ref_img = load("ref_img/ScreenCamera.png");
+ref_img = load("ref_img/2DCamera.png");
 img = load("screenshot.png");
 image_equal = ref_img == img
 @test image_equal
@@ -109,10 +170,11 @@ sleep(2/60)
 GLWindow.screenshot(window)
 Backend.close!(window)
 
-ref_img = load("ref_img/ScreenCamera_scaled.png");
+ref_img = load("ref_img/2DCamera_scaled.png");
 img = load("screenshot.png");
 image_equal = ref_img == img
 @test image_equal
 rm("screenshot.png")
+
 
 end
