@@ -145,6 +145,7 @@ Creates a default screen layout for a plotting tile.
 # Example:
 
 These screens will be added to the window.
+
 ╔═══════════════════╗
 ║ ┌───────────────┐ ║
 ║ │               │ ║
@@ -152,6 +153,7 @@ These screens will be added to the window.
 ║ │               │ ║
 ║ └───────────────┘ ║
 ╚═══════════════════╝
+
     ^- tile_screen,
        float_screen
 
