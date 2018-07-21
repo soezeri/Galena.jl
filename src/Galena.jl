@@ -9,7 +9,7 @@ import GLAbstraction: makesignal
 import GeometryTypes: isdecomposable, decompose, GLNormalMesh
 
 # package code goes here
-include("backend/Backend.jl")
+include("Backend/Backend.jl")
 export Backend
 
 end # module
