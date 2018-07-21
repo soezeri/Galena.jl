@@ -1,8 +1,8 @@
 using Reactive
 using GeometryTypes, GLAbstraction, GLVisualize
 
-
-println("Checking screen setup.")
+# Yuck
+@testset "Checking screen setup" begin
 
 # Get a window and the plotting screens.
 # Mark them with different colors, so we can see which overwrites which
@@ -75,3 +75,4 @@ img = load("screenshot.png");
 image_equal = ref_img == img
 @test image_equal
 rm("screenshot.png")
+end

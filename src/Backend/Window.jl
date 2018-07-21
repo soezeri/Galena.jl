@@ -145,6 +145,7 @@ Creates a default screen layout for a plotting tile.
 # Example:
 
 These screens will be added to the window.
+
 ╔═══════════════════╗
 ║ ┌───────────────┐ ║
 ║ │               │ ║
@@ -152,9 +153,16 @@ These screens will be added to the window.
 ║ │               │ ║
 ║ └───────────────┘ ║
 ╚═══════════════════╝
+<<<<<<< HEAD:src/backend/Window.jl
     ^- tile_screen,
        float_screen
 
+=======
+
+    ^- tile_screen,
+       float_screen
+
+>>>>>>> master:src/Backend/Window.jl
 plot_screen:
 - reduced area from bg_screen
 - things restricted to the plotting live here
