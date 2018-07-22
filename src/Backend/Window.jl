@@ -1,5 +1,34 @@
+import GLWindow.renderloop
+# pause render calls in renderloop to avoid segfaults and KeyErrors
+const pause_rendering = Ref(true)
+function renderloop(
+        window::Screen;
+        framerate = 1/60,
+        prerender = () -> nothing
+    )
+    pause_rendering[] = false
+    while isopen(window)
+        t = time()
+        if !pause_rendering[]
+            prerender()
+            render_frame(window)
+            swapbuffers(window)
+            poll_glfw()
+            yield()
+        end
+        # sleep_pessimistic(framerate - (time() - t)) #
+        # Apparently sleep_pessimistic is not necessary and performs worse?
+        # see Makie pr #45
+        diff = framerate - (time() - t)
+        diff > 0 && sleep(diff)
+    end
+    # destroy!(window)
+    return
+end
+
+
 # TODO
-# - rewrite screen bookeeping part, so that we can destroy all screens of one
+# - rewrite screen bookkeeping part, so that we can destroy all screens of one
 #   window, rather than everything (see GLVisualize/../renderloop.jl)
 
 # NOTE
@@ -78,8 +107,11 @@ function init_window(
     GLVisualize.pixel_per_mm[] = GLVisualize.get_scaled_dpi(window) / 25.4
     # I don't see a reason not to start this already
     @async renderloop(window)
+    # _renderloop(window)
+    # rl = Renderloop(window)
+    # start!(rl)
 
-    return window
+    return window#, rl#, running
 end
 
 
@@ -203,14 +235,18 @@ end
 Closes any Screen under window.
 """
 function close!(screen::GLWindow.Screen)
-    if isempty(screen.children)
-        destroy!(screen)
-        return nothing
-    else
-        map(close!, reverse(screen.children))
-        destroy!(screen)
-        return nothing
+    pause_rendering[] = true
+    destroy!(screen)
+    # Apparently this doesn't happen when GLFW.DestroyWindow is called
+    # but it's required for renderloop to finish
+    if GLWindow.isroot(screen)
+        GLFW.SetWindowShouldClose(GLWindow.nativewindow(screen), true)
     end
+    # I guess the above runs asynchronously? maybe? idk?
+    yield()
+    sleep(1/60)
+    pause_rendering[] = false
+    return
 end
 
 

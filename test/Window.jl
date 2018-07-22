@@ -1,8 +1,8 @@
-using Reactive
-using GeometryTypes, GLAbstraction, GLVisualize
-
 # Yuck
 @testset "Checking screen setup" begin
+
+using Reactive
+using GeometryTypes, GLAbstraction, GLVisualize
 
 # Get a window and the plotting screens.
 # Mark them with different colors, so we can see which overwrites which
